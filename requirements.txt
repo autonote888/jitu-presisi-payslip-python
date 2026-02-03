@@ -1,0 +1,8 @@
+streamlit
+supabase
+postgrest
+toml
+flet
+Pillow
+requests
+httpx
