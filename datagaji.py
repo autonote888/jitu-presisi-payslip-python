@@ -1,158 +1,144 @@
-import customtkinter as ctk
-from tkinter import messagebox, simpledialog
+import flet as ft
 from supabase import create_client, Client
-from PIL import Image
-import requests
-from io import BytesIO
+import toml
 import locale
+import time
 import os
 
 # ============================================================
-# 1. KONFIGURASI & KONSTANTA (Locked)
+# 1. LOGIKA SECRETS & KONEKSI SUPABASE
 # ============================================================
-URL = "https://bxlfaofmraznomebbrlh.supabase.co"
-KEY = "sb_publishable_SIb5TK2e9wZqUbxS8kqkig_pwm7wQIH"
-supabase: Client = create_client(URL, KEY)
+def load_secrets():
+    """Memuat kredensial dari file secrets.toml secara aman."""
+    try:
+        # Mencari file secrets.toml di direktori yang sama dengan skrip
+        config = toml.load("secrets.toml")
+        url = config["supabase"]["url"]
+        key = config["supabase"]["key"]
+        return url, key
+    except Exception as e:
+        print(f"⚠️ Gagal memuat secrets.toml: {e}")
+        return None, None
 
-URL_SPLASH = f"{URL}/storage/v1/object/public/assets/splash.png"
-URL_LOGO_JITU = f"{URL}/storage/v1/object/public/assets/logo_jitu.png"
+# Inisialisasi Supabase menggunakan Secrets
+SUPABASE_URL, SUPABASE_KEY = load_secrets()
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+else:
+    print("❌ Aplikasi tidak dapat terhubung ke Supabase. Periksa secrets.toml!")
 
-# Palet Warna Luxury
-NAVY_DEEP = "#001F5B"      
-GOLD_PRESISI = "#FFC107"   
+# ============================================================
+# 2. KONFIGURASI VISUAL (Locked "Luxury Inset")
+# ============================================================
+NAVY_POLRI = "#001F5B"
+GOLD_PRESISI = "#FFC107"
 WHITE = "#FFFFFF"
 GRAY_LUXURY = "#F8FAFC"
 GRAY_BORDER = "#E2E8F0"
-GRAY_SUBTLE = "#94A3B8"
 
-ctk.set_appearance_mode("light")
+# URL Assets Cloud
+URL_LOGO_JITU = "https://bxlfaofmraznomebbrlh.supabase.co/storage/v1/object/public/assets/logo_jitu.png"
+URL_SPLASH = "https://bxlfaofmraznomebbrlh.supabase.co/storage/v1/object/public/assets/splash.png"
 
-# ============================================================
-# 2. KAMUS TRANSLASI
-# ============================================================
-LANG_DATA = {
-    "ID": {
-        "access": "AKSES AMAN",
-        "user": "NRP / NIP", "pass": "Password", "login": "MASUK",
-        "or": "──────── atau ────────", "google": "Login dengan Google",
-        "forgot": "Lupa Password?"
-    },
-    "EN": {
-        "access": "SECURE ACCESS",
-        "user": "ID Number", "pass": "Password", "login": "SIGN IN",
-        "or": "──────── or ────────", "google": "Sign in with Google",
-        "forgot": "Forgot Password?"
-    }
-}
+def main(page: ft.Page):
+    # Pengaturan Canvas Mobile
+    page.title = "JITU PRESISI - DATAGAJI"
+    page.window_width = 420
+    page.window_height = 820
+    page.bgcolor = WHITE
+    page.padding = 0
+    page.vertical_alignment = ft.MainAxisAlignment.START
 
-# ============================================================
-# 3. UTILITAS & HELPER
-# ============================================================
-def load_cloud_image(url, target_width):
-    try:
-        response = requests.get(url, timeout=5)
-        img_data = BytesIO(response.content)
-        img = Image.open(img_data)
-        w, h = img.size
-        new_height = int(target_width / (w/h))
-        return ctk.CTkImage(light_image=img, dark_image=img, size=(target_width, new_height))
-    except: return None
+    # State Management
+    page.session_storage.set("lang", "ID")
 
-# ============================================================
-# 4. KELAS UTAMA APLIKASI
-# ============================================================
-class JituApp(ctk.CTk):
-    def __init__(self):
-        super().__init__()
-        self.title("JITU PRESISI")
-        self.geometry("420x820")
-        self.resizable(False, False)
-        self.configure(fg_color=WHITE)
+    # --- 3. UI COMPONENTS ---
+    def create_input(label, icon, is_password=False):
+        return ft.Container(
+            width=280,
+            content=ft.TextField(
+                label=label,
+                prefix_icon=icon,
+                password=is_password,
+                can_reveal_password=is_password,
+                border_radius=27,
+                border_color=GRAY_BORDER,
+                bgcolor=WHITE,
+                focused_border_color=NAVY_POLRI,
+                text_size=14,
+            )
+        )
 
-        self.current_lang = "ID" 
-        self.pass_visible = False
+    # --- 4. ANIMATED SPLASH SCREEN ---
+    def run_splash():
+        page.clean()
         
-        self.container = ctk.CTkFrame(self, fg_color="transparent")
-        self.container.pack(fill="both", expand=True)
-
-        self.init_splash()
-
-    def create_inset_input(self, parent, icon, placeholder, show="", pady=0):
-        # Inset Luxury: 280px
-        f = ctk.CTkFrame(parent, fg_color="white", border_width=1, border_color=GRAY_BORDER, 
-                         width=280, height=52, corner_radius=26)
-        f.pack(pady=pady); f.pack_propagate(False)
-        ctk.CTkLabel(f, text=icon, font=("Arial", 16)).pack(side="left", padx=(15, 5))
-        e = ctk.CTkEntry(f, placeholder_text=placeholder, show=show, border_width=0, 
-                         fg_color="transparent", font=("Arial", 14))
-        e.pack(side="left", fill="x", expand=True, padx=(0, 20))
-        return f, e
-
-    def init_splash(self):
-        for w in self.container.winfo_children(): w.destroy()
-        splash = ctk.CTkFrame(self.container, fg_color=NAVY_DEEP, corner_radius=0)
-        splash.pack(fill="both", expand=True)
-        img = load_cloud_image(URL_SPLASH, 100)
-        if img: ctk.CTkLabel(splash, image=img, text="").place(relx=0.5, rely=0.45, anchor="center")
-        self.after(2000, self.init_login)
-
-    def init_login(self):
-        for w in self.container.winfo_children(): w.destroy()
-        t = LANG_DATA[self.current_lang]
-
-        # A. Language Selector (EN | ID)
-        lang_f = ctk.CTkFrame(self.container, fg_color="transparent")
-        lang_f.place(relx=0.92, y=40, anchor="ne")
-        ctk.CTkButton(lang_f, text="EN", width=25, text_color=NAVY_DEEP if self.current_lang=="EN" else GRAY_SUBTLE, 
-                      fg_color="transparent", font=("Arial", 12, "bold"), command=lambda: self.switch_lang("EN")).pack(side="left")
-        ctk.CTkLabel(lang_f, text="|", text_color=GRAY_BORDER).pack(side="left", padx=2)
-        ctk.CTkButton(lang_f, text="ID", width=25, text_color=NAVY_DEEP if self.current_lang=="ID" else GRAY_SUBTLE, 
-                      fg_color="transparent", font=("Arial", 12, "bold"), command=lambda: self.change_lang("ID")).pack(side="left")
-
-        # B. BRANDING AREA (Pakar Calibrated: 140px)
-        img_l = load_cloud_image(URL_LOGO_JITU, 90)
-        if img_l: ctk.CTkLabel(self.container, image=img_l, text="").pack(pady=(140, 5)) 
+        # Logo Splash di tengah
+        splash_logo = ft.Image(src=URL_SPLASH, width=120)
         
-        brand_f = ctk.CTkFrame(self.container, fg_color="transparent")
-        brand_f.pack(pady=(0, 30))
-        ctk.CTkLabel(brand_f, text="JITU", font=("Arial", 18, "bold"), text_color="black").pack(side="left")
-        ctk.CTkLabel(brand_f, text=" PRESISI", font=("Arial", 18, "bold"), text_color=GOLD_PRESISI).pack(side="left")
-
-        # C. Form Area (Simetris 320px)
-        ctk.CTkLabel(self.container, text=t["access"], font=("Arial", 12, "bold"), 
-                     text_color="#64748B", fg_color=GRAY_LUXURY, width=320, height=45, corner_radius=22).pack(pady=(0, 20))
-
-        _, self.nrp_ent = self.create_inset_input(self.container, "👤", t["user"], pady=(0, 15))
+        splash_container = ft.Container(
+            expand=True,
+            bgcolor=NAVY_POLRI,
+            content=ft.Column([
+                ft.Container(content=splash_logo, alignment=ft.alignment.center)
+            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        )
         
-        # Pass + Eye Toggle
-        f_pass = ctk.CTkFrame(self.container, fg_color="white", border_width=1, border_color=GRAY_BORDER, width=280, height=52, corner_radius=26)
-        f_pass.pack(pady=(0, 25)); f_pass.pack_propagate(False)
-        self.eye_btn = ctk.CTkButton(f_pass, text="🔒", width=30, fg_color="transparent", text_color="black", hover_color=WHITE, command=self.toggle_eye)
-        self.eye_btn.pack(side="left", padx=(10, 0))
-        self.pw_ent = ctk.CTkEntry(f_pass, placeholder_text=t["pass"], show="*", border_width=0, fg_color="transparent", font=("Arial", 14))
-        self.pw_ent.pack(side="left", fill="x", expand=True, padx=(0, 20))
-
-        # D. Action Area (Simetris 320px)
-        ctk.CTkButton(self.container, text=t["login"], fg_color=NAVY_DEEP, font=("Arial", 16, "bold"), 
-                      height=60, width=320, corner_radius=30).pack(pady=(10, 20))
+        page.add(splash_container)
         
-        ctk.CTkLabel(self.container, text=t["or"], text_color="#E2E8F0", font=("Arial", 10)).pack()
-        ctk.CTkButton(self.container, text=t["google"], fg_color="white", text_color="black", border_width=1, 
-                      border_color=GRAY_BORDER, height=55, width=320, corner_radius=27).pack(pady=(20, 10))
+        # Animasi Ping-Pong (Simulasi Sederhana di Flet)
+        # Untuk Flet, kita gunakan transisi page setelah jeda
+        time.sleep(2)
+        run_login()
+
+    # --- 5. PROPORTIONAL LOGIN PAGE ---
+    def run_login():
+        page.clean()
+        t = {"ID": "AKSES AMAN", "EN": "SECURE ACCESS"} # Contoh simpel lokalisasi
         
-        ctk.CTkButton(self.container, text=t["forgot"], text_color=GRAY_SUBTLE, fg_color="transparent", 
-                      font=("Arial", 11, "bold")).pack(pady=10)
+        # A. HERO SECTION (Auto-Center)
+        hero_section = ft.Container(
+            expand=True,
+            content=ft.Column([
+                ft.Image(src=URL_LOGO_JITU, width=100),
+                ft.Row([
+                    ft.Text("JITU", size=22, weight="bold", color="black"),
+                    ft.Text(" PRESISI", size=22, weight="bold", color=GOLD_PRESISI),
+                ], alignment=ft.MainAxisAlignment.CENTER),
+            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        )
 
-    # --- Bisnis Logika ---
-    def switch_lang(self, lang):
-        self.current_lang = lang
-        self.init_login()
+        # B. FORM SECTION (Bottom Weighted)
+        form_section = ft.Container(
+            padding=ft.padding.only(bottom=60),
+            content=ft.Column([
+                ft.Container(
+                    width=320, height=45, bgcolor=GRAY_LUXURY, border_radius=22,
+                    alignment=ft.alignment.center,
+                    content=ft.Text(t["ID"], weight="bold", color="#64748B", size=12)
+                ),
+                ft.Divider(height=15, color="transparent"),
+                create_input("NRP / NIP", ft.icons.PERSON_OUTLINE),
+                create_input("Password", ft.icons.LOCK_OUTLINE, is_password=True),
+                ft.Divider(height=25, color="transparent"),
+                
+                ft.Container(
+                    width=320, height=60,
+                    content=ft.ElevatedButton(
+                        text="MASUK",
+                        style=ft.ButtonStyle(color=WHITE, bgcolor=NAVY_POLRI, shape=ft.RoundedRectangleBorder(radius=30)),
+                        on_click=lambda _: print(f"Menghubungkan ke: {SUPABASE_URL}")
+                    )
+                ),
+                ft.TextButton(text="Lupa Password?", style=ft.ButtonStyle(color="#94A3B8"))
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        )
 
-    def toggle_eye(self):
-        self.pass_visible = not self.pass_visible
-        self.pw_ent.configure(show="" if self.pass_visible else "*")
-        self.eye_btn.configure(text="👁️" if self.pass_visible else "🔒")
+        page.add(ft.Column([hero_section, form_section], expand=True))
+        page.update()
+
+    # Mulai Aplikasi
+    run_splash()
 
 if __name__ == "__main__":
-    app = JituApp()
-    app.mainloop()
+    ft.app(target=main)
